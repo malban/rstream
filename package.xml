@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>rstream</name>
+  <version>0.1.0</version>
+  <description>Library for managing multiple Intel RealSense camera streams to minimize processing</description>
+
+  <maintainer email="marcalban@hatchbed.com">Marc Alban</maintainer>
+  <license>BSD</license>
+
+  <buildtool_depend>cmake</buildtool_depend>
+
+  <depend>libboost-dev</depend>
+  <depend>librealsense2</depend>
+  <depend>opencv</depend>
+  <depend>spdlog</depend>
+    
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+
+</package>

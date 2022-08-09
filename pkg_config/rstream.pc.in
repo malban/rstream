@@ -1,0 +1,9 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: rstream
+Description: Library for managing multiple Intel RealSense camera streams to minimize processing.
+Version: @rstream_version@
+Libs: -L${libdir} -lrstream 
+Cflags: @PKG_CONFIG_C_FLAGS@ -I${includedir}
