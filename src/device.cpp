@@ -12,7 +12,241 @@ Device::Device(const std::string& serial_no) : serial_no_(serial_no) {
 }
 
 Device::~Device() {
-    closeStreams();
+    close();
+}
+
+bool Device::configureStreams(const std::vector<StreamConfig>& configs, bool exact_match) {
+    try {
+        std::unordered_map<std::string, std::vector<StreamDefinition>> sensor_streams;
+
+        for (const auto& config: configs) {
+
+            auto stream = configureStream(config);
+            if (!stream) {
+                error("Failed to configure stream.");
+                return false;
+            }
+
+            std::string sensor_name = stream->sensor.get_info(RS2_CAMERA_INFO_NAME);
+            sensor_streams[sensor_name].push_back(*stream);
+        }
+
+        stream_num_ = configs.size();
+        sensor_streams_ = sensor_streams;
+
+        return true;
+    }
+    catch(const std::exception& ex) {
+        error("An exception has been thrown trying to config streams: {}", ex.what());
+    }
+    catch(...) {
+        error("Unknown exception has occured trying to config streams!");
+    }
+
+    return false;
+}
+
+bool Device::open() {
+    if (is_open_) {
+        return true;
+    }
+    try {
+
+        // the streams for a given sensor module need to be opened together
+        for (auto& sensor: sensor_streams_) {
+            if (sensor.second.empty()) {
+                continue;
+            }
+
+            std::vector<rs2::stream_profile> profiles;
+            for (const auto& stream: sensor.second) {
+                profiles.push_back(stream.profile);
+            }
+
+            info("Opening streams on {} sensor", sensor.first);
+            sensor.second.front().sensor.open(profiles);
+        }
+
+        is_open_ = true;
+        return true;
+    }
+    catch(const std::exception& ex) {
+        error("An exception has been thrown trying to open streams: {}", ex.what());
+    }
+    catch(...) {
+        error("Unknown exception has occured trying to open streams!");
+    }
+
+    return false;
+}
+
+bool Device::close() {
+    if (!is_open_) {
+        return true;
+    }
+    try {
+
+        // close the streams on each sensor module
+        for (auto& sensor: sensor_streams_) {
+            if (sensor.second.empty()) {
+                continue;
+            }
+
+            if (is_streaming_) {
+                info("Stopping streams on {} sensor ...", sensor.first);
+                sensor.second.front().sensor.stop();
+            }
+
+            info("Closing {} sensor ...", sensor.first);
+            sensor.second.front().sensor.close();
+        }
+
+        is_streaming_ = false;
+        is_open_ = false;
+        return true;
+    }
+    catch(const std::exception& ex) {
+        error("An exception has been thrown trying to close streams: {}", ex.what());
+    }
+    catch(...) {
+        error("Unknown exception has occured trying to close streams!");
+    }
+
+    return false;
+}
+
+bool Device::start() {
+    if (!is_open_) {
+        return false;
+    }
+    if (is_streaming_) {
+        return true;
+    }
+    try {
+
+        // start the streams on each sensor module
+        for (auto& sensor: sensor_streams_) {
+            if (sensor.second.empty()) {
+                continue;
+            }
+
+            frameset_ = std::make_shared<Frameset>();
+
+            debug("Starting streams on {} sensor ...", sensor.first);
+            sensor.second.front().sensor.start([this](rs2::frame frame){ frameCallback(frame); });
+        }
+
+        is_streaming_ = true;
+        return true;
+    }
+    catch(const std::exception& ex) {
+        error("An exception has been thrown trying to config stream: {}", ex.what());
+    }
+    catch(...) {
+        error("Unknown exception has occured trying to config stream!");
+    }
+
+    return false;
+}
+
+bool Device::stop() {
+    if (!is_streaming_) {
+        return true;
+    }
+    try {
+
+        // stop the streams on each sensor module
+        for (auto& sensor: sensor_streams_) {
+            if (sensor.second.empty()) {
+                continue;
+            }
+
+            debug("Stopping streams on {} sensor ...", sensor.first);
+            sensor.second.front().sensor.stop();
+        }
+
+        is_streaming_ = false;
+        return true;
+    }
+    catch(const std::exception& ex) {
+        error("An exception has been thrown trying to stop streams: {}", ex.what());
+    }
+    catch(...) {
+        error("Unknown exception has occured trying to stop streams!");
+    }
+
+    return false;
+}
+
+void Device::setCallback(FrameCallback callback) {
+    frame_callback_ = callback;
+}
+
+Frameset::Ptr Device::getFrames(int timeout_ms) {
+    if (is_streaming_) {
+        warn("Unable to get frames, device is already streaming");
+        return {};
+    }
+
+    // enable polling mode
+    {
+        std::scoped_lock lock(frameset_mutex_);
+        waiting_for_frames_ = true;
+    }
+
+    // open the device streams if they are not already open
+    // NOTE: there is a delay between opening the streams and starting to
+    //       recieve data
+    bool is_open = is_open_;
+    if (!is_open) {
+        open();
+    }
+
+    start();
+
+    // wait up to the specified timeout for notification that the frameset has
+    // been populated
+    Frameset::Ptr frames;
+    auto now = std::chrono::system_clock::now();
+    auto timeout = now + std::chrono::milliseconds(timeout_ms);
+    std::unique_lock<std::mutex> lock(frameset_mutex_);
+    if(frameset_condition_.wait_until(lock, timeout, [this](){
+        return frameset_ && frameset_->size() >= stream_num_;
+    })) {
+        // copy a reference to the class level frameset
+        frames = frameset_;
+    }
+    else {
+        warn("Timedout waiting for frame data");
+    }
+
+    // clear the class level frameset
+    frameset_ = std::make_shared<Frameset>();
+    lock.unlock();
+
+    stop();
+
+    // close the device streams if they were closed before the call to getFrames
+    if (!is_open) {
+        close();
+    }
+
+    // disable polling mode
+    {
+        std::scoped_lock lock(frameset_mutex_);
+        waiting_for_frames_ = false;
+    }
+
+    return frames;
+}
+
+Device::Ptr Device::find(const std::string& serial_no) {
+    auto device = std::shared_ptr<Device>(new Device(serial_no));
+    if (device->connect()) {
+        return device;
+    }
+
+    return {};
 }
 
 bool Device::connect() {
@@ -82,180 +316,6 @@ bool Device::connect() {
     return false;
 }
 
-Device::Ptr Device::find(const std::string& serial_no) {
-    auto device = std::shared_ptr<Device>(new Device(serial_no));
-    if (device->connect()) {
-        return device;
-    }
-
-    return {};
-}
-
-bool Device::startStreams() {
-    if (is_streaming_) {
-        return true;
-    }
-    try {
-        for (auto& sensor: sensor_streams_) {
-            if (sensor.second.empty()) {
-                continue;
-            }
-
-            frameset_ = std::make_shared<Frameset>();
-
-            debug("Starting streams on {} sensor ...", sensor.first);
-            sensor.second.front().sensor.start([this](rs2::frame frame){ frameCallback(frame); });
-        }
-
-        is_streaming_ = true;
-        return true;
-    }
-    catch(const std::exception& ex) {
-        error("An exception has been thrown trying to config stream: {}", ex.what());
-    }
-    catch(...) {
-        error("Unknown exception has occured trying to config stream!");
-    }
-
-    return false;
-}
-
-bool Device::stopStreams() {
-    if (!is_streaming_) {
-        return true;
-    }
-    try {
-        for (auto& sensor: sensor_streams_) {
-            if (sensor.second.empty()) {
-                continue;
-            }
-
-            debug("Stopping streams on {} sensor ...", sensor.first);
-            sensor.second.front().sensor.stop();
-        }
-
-        is_streaming_ = false;
-        return true;
-    }
-    catch(const std::exception& ex) {
-        error("An exception has been thrown trying to stop streams: {}", ex.what());
-    }
-    catch(...) {
-        error("Unknown exception has occured trying to stop streams!");
-    }
-
-    return false;
-}
-
-bool Device::configureStreams(const std::vector<StreamConfig>& configs) {
-    try {
-        std::unordered_map<std::string, std::vector<StreamDefinition>> sensor_streams;
-
-        for (const auto& config: configs) {
-
-            auto stream = configureStream(config);
-            if (!stream) {
-                error("Failed to configure stream.");
-                return false;
-            }
-
-            std::string sensor_name = stream->sensor.get_info(RS2_CAMERA_INFO_NAME);
-            sensor_streams[sensor_name].push_back(*stream);
-        }
-
-        stream_num_ = configs.size();
-        sensor_streams_ = sensor_streams;
-
-        return true;
-    }
-    catch(const std::exception& ex) {
-        error("An exception has been thrown trying to config streams: {}", ex.what());
-    }
-    catch(...) {
-        error("Unknown exception has occured trying to config streams!");
-    }
-
-    return false;
-}
-
-bool Device::openStreams() {
-    if (is_open_) {
-        return true;
-    }
-    try {
-        for (auto& sensor: sensor_streams_) {
-            if (sensor.second.empty()) {
-                continue;
-            }
-
-            std::vector<rs2::stream_profile> profiles;
-            for (const auto& stream: sensor.second) {
-                profiles.push_back(stream.profile);
-            }
-
-            info("Opening streams on {} sensor", sensor.first);
-            sensor.second.front().sensor.open(profiles);
-        }
-
-        is_open_ = true;
-        return true;
-    }
-    catch(const std::exception& ex) {
-        error("An exception has been thrown trying to open streams: {}", ex.what());
-    }
-    catch(...) {
-        error("Unknown exception has occured trying to open streams!");
-    }
-
-    return false;
-}
-
-Frameset::Ptr Device::getFrames(int timeout_ms) {
-    if (is_streaming_) {
-        warn("Unable to get frames, device is already streaming");
-        return {};
-    }
-
-    {
-        std::scoped_lock lock(frameset_mutex_);
-        waiting_for_frames_ = true;
-    }
-
-    bool is_open = is_open_;
-
-    if (!is_open) {
-        openStreams();
-    }
-    startStreams();
-
-    Frameset::Ptr frames;
-    auto now = std::chrono::system_clock::now();
-    auto timeout = now + std::chrono::milliseconds(timeout_ms);
-    std::unique_lock<std::mutex> lock(frameset_mutex_);
-    if(frameset_condition_.wait_until(lock, timeout, [this](){
-        return frameset_ && frameset_->size() >= stream_num_;
-    })) {
-        frames = frameset_;
-    }
-    else {
-        warn("Timedout waiting for frame data");
-    }
-    frameset_ = std::make_shared<Frameset>();
-    lock.unlock();
-
-    stopStreams();
-    if (!is_open) {
-        closeStreams();
-    }
-
-    {
-        std::scoped_lock lock(frameset_mutex_);
-        waiting_for_frames_ = false;
-    }
-
-    return frames;
-}
-
 std::optional<StreamDefinition> Device::configureStream(const StreamConfig& config) {
     info("Configuring stream <{}>: width={} height={} fps={} format={}", toString(config.stream, config.index),
         config.width, config.height, config.fps, rs2_format_to_string(config.format));
@@ -284,39 +344,6 @@ std::optional<StreamDefinition> Device::configureStream(const StreamConfig& conf
     return {};
 }
 
-bool Device::closeStreams() {
-    if (!is_open_) {
-        return true;
-    }
-    try {
-        for (auto& sensor: sensor_streams_) {
-            if (sensor.second.empty()) {
-                continue;
-            }
-
-            if (is_streaming_) {
-                info("Stopping streams on {} sensor ...", sensor.first);
-                sensor.second.front().sensor.stop();
-            }
-
-            info("Closing {} sensor ...", sensor.first);
-            sensor.second.front().sensor.close();
-        }
-
-        is_streaming_ = false;
-        is_open_ = false;
-        return true;
-    }
-    catch(const std::exception& ex) {
-        error("An exception has been thrown trying to close streams: {}", ex.what());
-    }
-    catch(...) {
-        error("Unknown exception has occured trying to close streams!");
-    }
-
-    return false;
-}
-
 void Device::frameCallback(rs2::frame frame) {
     std::scoped_lock lock(frameset_mutex_);
 
@@ -328,15 +355,19 @@ void Device::frameCallback(rs2::frame frame) {
     trace("Received frame (type={}:{} stamp={}) {} of {}",
         profile.stream_type(), profile.stream_index(), frame.get_timestamp(), frameset_->size(), stream_num_);
 
-    frameset_->addFrame(frame, profile.stream_type(), profile.stream_index());
+    frameset_->addFrame(frame);
 
+    // check if the frameset is complete
     if (frameset_->size() >= stream_num_) {
         if (waiting_for_frames_) {
             // notify condition
             frameset_condition_.notify_all();
         }
         else {
-            // TODO aggregated callback
+            // call aggregated callback
+            if (frame_callback_) {
+                frame_callback_(frameset_);
+            }
             frameset_ = std::make_shared<Frameset>();
         }
     }

@@ -1,22 +1,14 @@
 #include <rstream/frameset.h>
 
+#include <rstream/convert.h>
+
 namespace rstream {
 
-std::shared_ptr<rs2::frame> Frameset::get(rs2_stream stream, int index) {
-    auto stream_it = frames_.find(stream);
-    if (stream_it == frames_.end()) {
-        return {};
-    }
+void Frameset::addFrame(rs2::frame frame) {
+    auto profile = frame.get_profile();
+    auto stream = profile.stream_type();
+    auto index = profile.stream_index();
 
-    auto index_it = stream_it->second.find(index);
-    if (index_it == stream_it->second.end()) {
-        return {};
-    }
-
-    return index_it->second;
-}
-
-void Frameset::addFrame(rs2::frame frame, rs2_stream stream, int index) {
     if (!contains(stream, index)) {
         size_++;
     }
@@ -40,6 +32,29 @@ bool Frameset::contains(rs2_stream stream, int index) const {
 
 size_t Frameset::size() const {
     return size_;
+}
+
+std::shared_ptr<rs2::frame> Frameset::get(rs2_stream stream, int index) {
+    auto stream_it = frames_.find(stream);
+    if (stream_it == frames_.end()) {
+        return {};
+    }
+
+    auto index_it = stream_it->second.find(index);
+    if (index_it == stream_it->second.end()) {
+        return {};
+    }
+
+    return index_it->second;
+}
+
+cv::Mat Frameset::getMat(rs2_stream stream, int index) {
+    auto frame = get(stream, index);
+    if (!frame) {
+        return {};
+    }
+
+    return toMat(*frame);
 }
 
 }  // namespace rstream

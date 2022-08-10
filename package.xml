@@ -2,7 +2,7 @@
 <package format="3">
   <name>rstream</name>
   <version>0.1.0</version>
-  <description>Library for managing multiple Intel RealSense camera streams to minimize processing</description>
+  <description>Library for managing multiple Intel RealSense camera streams and minimizing processing</description>
 
   <maintainer email="marcalban@hatchbed.com">Marc Alban</maintainer>
   <license>BSD</license>

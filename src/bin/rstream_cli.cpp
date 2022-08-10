@@ -185,12 +185,12 @@ int main(int argc, char* argv[]) {
 
     if (mode == "continuous") {
         for (auto& device: devices) {
-            if (!device->openStreams()) {
+            if (!device->open()) {
                 error("Failed to open streams");
                 return 1;
             }
 
-            if (!device->startStreams()) {
+            if (!device->start()) {
                 error("Failed to start streams");
                 return 1;
             }
@@ -204,7 +204,7 @@ int main(int argc, char* argv[]) {
 
         if (keep_open) {
             for (auto& device: devices) {
-                device->openStreams();
+                device->open();
             }
         }
 

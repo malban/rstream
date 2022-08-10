@@ -22,6 +22,7 @@ include_directories(
     ${spdlog_INCLUDE_DIRS})
 
 add_library(${PROJECT_NAME} SHARED
+    src/convert.cpp
     src/device.cpp
     src/frameset.cpp
     src/util.cpp)
