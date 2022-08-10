@@ -51,8 +51,8 @@ int main(int argc, char* argv[]) {
 
     CLI::App app{"rstream_cli"};
 
-    std::string serial_no;
-    app.add_option("SERIAL_NO", serial_no, "Serial number");
+    std::vector<std::string> serial_numbers;
+    app.add_option("-n,--serial-no", serial_numbers, "Serial number")->take_all();
 
     std::vector<std::string> streams;
     app.add_option("-s,--stream", streams, "Stream configuration (TYPE:WIDTH:HEIGHT:FPS:FORMAT)")->take_all();
@@ -151,29 +151,49 @@ int main(int argc, char* argv[]) {
 
     set_level(rstream::parseLevel(level));
 
-    auto device = rstream::Device::find(serial_no);
-    if (!device) {
-      error("Failed to find device with serial_no: <{}>", serial_no);
-      return 1;
-    }
+    std::vector<rstream::Device::Ptr> devices;
+    for (const auto& serial_no: serial_numbers) {
+        auto device = rstream::Device::find(serial_no);
+        if (!device) {
+          error("Failed to find device with serial_no: <{}>", serial_no);
+          return 1;
+        }
 
-    if (!device->configureStreams(stream_configs)) {
-        error("Failed to configure streams");
-        return 1;
+        if (!device->configureStreams(stream_configs)) {
+            error("Failed to configure streams");
+            return 1;
+        }
+
+        devices.push_back(device);
+    }
+    if (devices.empty()) {
+        auto device = rstream::Device::find("");
+        if (!device) {
+          error("Failed to find device");
+          return 1;
+        }
+
+        devices.push_back(device);
+        if (!device->configureStreams(stream_configs)) {
+            error("Failed to configure streams");
+            return 1;
+        }
     }
 
     signal(SIGINT, handleSignal);
     signal(SIGTSTP, handleSignal);
 
     if (mode == "continuous") {
-        if (!device->openStreams()) {
-            error("Failed to open streams");
-            return 1;
-        }
+        for (auto& device: devices) {
+            if (!device->openStreams()) {
+                error("Failed to open streams");
+                return 1;
+            }
 
-        if (!device->startStreams()) {
-            error("Failed to start streams");
-            return 1;
+            if (!device->startStreams()) {
+                error("Failed to start streams");
+                return 1;
+            }
         }
 
         while (!exit_) {
@@ -183,7 +203,9 @@ int main(int argc, char* argv[]) {
     else {
 
         if (keep_open) {
-            device->openStreams();
+            for (auto& device: devices) {
+                device->openStreams();
+            }
         }
 
         std::cout << "Press ENTER/RETURN to capture a frame.\n";
@@ -191,20 +213,32 @@ int main(int argc, char* argv[]) {
         int num_frames = 0;
         double total_elapsed = 0.0;
         while (!exit_) {
-            std::this_thread::sleep_for(100ms);
+            std::this_thread::sleep_for(250ms);
             if (getch() == 10 && !exit_) {
-                info("Waiting for frame ...");
+                info("Waiting for frames ...");
+                std::vector<std::thread> threads;
                 auto start = std::chrono::system_clock::now();
-                auto frames = device->getFrames(1000);
-                if (!frames) {
-                    warn("Failed to get frames");
+                for (auto& device: devices) {
+                    threads.emplace_back([&](){
+                        auto frames = device->getFrames(1000);
+                        if (!frames) {
+                            warn("Failed to get frames");
+                        }
+                        else {
+                            std::chrono::duration<double, std::ratio<1, 1000>> elapsed_ms = std::chrono::system_clock::now() - start;
+                            info("Got frame in {:.2f}ms", elapsed_ms.count());
+                        }
+                    });
                 }
-                else {
-                    std::chrono::duration<double, std::ratio<1, 1000>> elapsed_ms = std::chrono::system_clock::now() - start;
-                    num_frames++;
-                    total_elapsed += elapsed_ms.count();
-                    info("Got frame in {:.2f}ms ({:.2f}ms)", elapsed_ms.count(), total_elapsed / num_frames);
+
+                for (auto& thread: threads) {
+                    thread.join();
                 }
+
+                std::chrono::duration<double, std::ratio<1, 1000>> elapsed_ms = std::chrono::system_clock::now() - start;
+                num_frames++;
+                total_elapsed += elapsed_ms.count();
+                info("Got frames in {:.2f}ms ({:.2f}ms)", elapsed_ms.count(), total_elapsed / num_frames);
             }
         }
     }

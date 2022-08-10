@@ -18,6 +18,7 @@ Device::~Device() {
 bool Device::connect() {
 
     auto devices = context_.query_devices();
+
     debug("Found {} device(s)", devices.size());
 
     bool found = false;
