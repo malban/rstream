@@ -1,6 +1,34 @@
 # rstream
 Library for managing multiple Intel RealSense camera streams and minimizing processing.
 
+## Motivation
+
+Implement a slightly higher level interface for accessing RealSense devices programmatically than is provided with
+librealsense.  The [realsense_ros](https://github.com/IntelRealSense/realsense-ros) package also provides a high level
+interface, but it is geared to publishing a fixed rate of image messages from a [ROS](http://wiki.ros.org/) node and is
+generally tied to ROS.
+
+Sensor data can be acquired in 3 ways with rstream:
+1. Conventional streaming with a callback.
+
+   Data is returned from the sensor at a fixed rate to a callback function.
+
+2. Polling for a single frame from an open stream.
+
+   Sensor streams are opened for exclusive access, but the data sent over the USB interface is not copied or processed
+   until a blocking call to get then next frame is made.  This method is useful when a continous stream of data is not
+   required for the application and CPU resources are constrained.   This avoids both memory copies and color
+   conversions from being performed on data that is not polled for.
+
+   Note: Since the data is being continously streamed on the USB interface, polling for the frame doesn't add any extra
+   delay over the conventional streaming/callback method.
+
+3. Polling for a single frame from a closed stream.
+
+   Sensor streams are not opened for exclusive access until a blocking call to get then next frame is made.  Once the 
+   frame is returned the streams are closed for exclusive access.  This is useful if the USB interface bandwidth is
+   constrained, but adds additional delay of 150ms+ to open the streams.
+
 ## Build Dependencies
 
 - [boost](https://www.boost.org/)

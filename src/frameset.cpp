@@ -49,12 +49,21 @@ std::shared_ptr<rs2::frame> Frameset::get(rs2_stream stream, int index) {
 }
 
 cv::Mat Frameset::getMat(rs2_stream stream, int index) {
-    auto frame = get(stream, index);
-    if (!frame) {
-        return {};
+    cv::Mat mat;
+    if (getMat(mat, stream, index)) {
+        return mat;
     }
 
-    return toMat(*frame);
+    return {};
+}
+
+bool Frameset::getMat(cv::Mat& mat, rs2_stream stream, int index) {
+    auto frame = get(stream, index);
+    if (!frame) {
+        return false;
+    }
+
+    return toMat(*frame, mat);
 }
 
 }  // namespace rstream

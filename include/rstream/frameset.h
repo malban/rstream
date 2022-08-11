@@ -52,8 +52,7 @@ class Frameset {
     /**
      * Get a cv::Mat copy of frame data from a specific stream.
      *
-     * Note:  If the raw frame data is UYVY or YUYV it will be converted to
-     *        BGR8
+     * Note:  Only BGR8, BGRA8, RGB8, RGBA8, Y8, Y16, Z16 formats supported.
      *
      * @param[in] stream  Stream type.
      * @param[in] index  Stream index.
@@ -61,6 +60,22 @@ class Frameset {
      * @returns A cv::Mat copy of the frame if valid, empty otherwise.
      */
     cv::Mat getMat(rs2_stream stream, int index = 0);
+
+    /**
+     * Copy of frame data into an existing cv::Mat from a specific stream.
+     *
+     * Note: The cv::Mat will be reallocated if it isn't the correct size and
+     *       format.
+     *
+     * Note:  Only BGR8, BGRA8, RGB8, RGBA8, Y8, Y16, Z16 formats supported.
+     *
+     * @param[out] mat  Mat to copy frame to.
+     * @param[in] stream  Stream type.
+     * @param[in] index  Stream index.
+     *
+     * @returns True if successful, false otherwise.
+     */
+    bool getMat(cv::Mat& mat, rs2_stream stream, int index = 0);
 
   private:
     std::unordered_map<rs2_stream, std::unordered_map<int, std::shared_ptr<rs2::frame>>> frames_;
