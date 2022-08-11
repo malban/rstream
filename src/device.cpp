@@ -15,6 +15,10 @@ Device::~Device() {
     close();
 }
 
+std::string Device::getSerialNo() const {
+    return serial_no_;
+}
+
 bool Device::configureStreams(const std::vector<StreamConfig>& configs, bool exact_match) {
     try {
         std::unordered_map<std::string, std::vector<StreamDefinition>> sensor_streams;

@@ -39,6 +39,8 @@ class Device {
 
     ~Device();
 
+    std::string getSerialNo() const;
+
     /**
      * Configures which streams the device should generate.
      *

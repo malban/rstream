@@ -87,9 +87,13 @@ Options:
   -h,--help                   Print this help message and exit
   -n,--serial-no TEXT ...     Serial number
   -s,--stream TEXT ...        Stream configuration (TYPE:WIDTH:HEIGHT:FPS:FORMAT)
-  -l,--level TEXT             Log level  {trace,debug,info,warn,error,off}
-  -m,--mode TEXT:=continuous  Mode  {continuous,user}
+  -l,--level TEXT:{trace,debug,info,warn,error,off}
+                              Log level
+  -m,--mode TEXT:{continuous,user}=continuous
+                              Mode
   -k,--keep-open              Keep streams open
+  --save-images               Save images to output directory
+  -o,--outdir TEXT            Output directory
 
 ```
 

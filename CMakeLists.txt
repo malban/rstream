@@ -4,7 +4,7 @@ project(rstream VERSION 0.1.0)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 find_package(Boost REQUIRED)
-find_package(OpenCV REQUIRED core)
+find_package(OpenCV REQUIRED core imgcodecs)
 find_package(realsense2 REQUIRED)
 find_package(Threads REQUIRED)
 

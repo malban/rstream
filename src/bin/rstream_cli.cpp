@@ -1,6 +1,7 @@
 #include <chrono>
 #include <csignal>
 #include <cstdio>
+#include <filesystem>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -14,10 +15,12 @@
 
 #include <boost/algorithm/string.hpp>
 #include <CLI/CLI.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include <rstream/device.h>
 #include <rstream/util.h>
 #include <spdlog/spdlog.h>
 
+namespace fs = std::filesystem;
 using namespace std::chrono_literals;
 using namespace spdlog;
 
@@ -67,6 +70,12 @@ int main(int argc, char* argv[]) {
 
     bool keep_open = false;
     app.add_flag("-k,--keep-open", keep_open, "Keep streams open");
+
+    bool save_images = false;
+    app.add_flag("--save-images", save_images, "Save images to output directory");
+
+    std::string outdir = ".";
+    app.add_option("-o,--outdir", outdir, "Output directory");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -185,6 +194,27 @@ int main(int argc, char* argv[]) {
 
     if (mode == "continuous") {
         for (auto& device: devices) {
+
+            if (save_images) {
+                info("setting callback for {}", device->getSerialNo());
+                device->setCallback([&](rstream::Frameset::Ptr frames){
+                    info("{} callback", device->getSerialNo());
+                    static int num_frames = 0;
+                    for (const auto& config: stream_configs) {
+                        auto mat = frames->getMat(config.stream, config.index);
+                        if (!mat.empty()) {
+                            std::string filename = device->getSerialNo() + "_" +
+                                rstream::toString(config.stream, config.index) + "_" +
+                                std::to_string(num_frames) +  ".png";
+                            fs::path filepath = outdir;
+                            filepath /= filename;
+                            cv::imwrite(filepath, mat);
+                        }
+                    }
+                    num_frames++;
+                });
+            }
+
             if (!device->open()) {
                 error("Failed to open streams");
                 return 1;
@@ -227,6 +257,20 @@ int main(int argc, char* argv[]) {
                         else {
                             std::chrono::duration<double, std::ratio<1, 1000>> elapsed_ms = std::chrono::system_clock::now() - start;
                             info("Got frame in {:.2f}ms", elapsed_ms.count());
+
+                            if (save_images) {
+                                for (const auto& config: stream_configs) {
+                                    auto mat = frames->getMat(config.stream, config.index);
+                                    if (!mat.empty()) {
+                                        std::string filename = device->getSerialNo() + "_" +
+                                            rstream::toString(config.stream, config.index) + "_" +
+                                            std::to_string(num_frames) +  ".png";
+                                        fs::path filepath = outdir;
+                                        filepath /= filename;
+                                        cv::imwrite(filepath, mat);
+                                    }
+                                }
+                            }
                         }
                     });
                 }
