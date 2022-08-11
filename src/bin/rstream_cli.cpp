@@ -183,7 +183,7 @@ int main(int argc, char* argv[]) {
         }
 
         devices.push_back(device);
-        if (!device->configureStreams(stream_configs)) {
+        if (!device->configureStreams(stream_configs, false)) {
             error("Failed to configure streams");
             return 1;
         }

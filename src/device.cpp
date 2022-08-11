@@ -19,13 +19,13 @@ std::string Device::getSerialNo() const {
     return serial_no_;
 }
 
-bool Device::configureStreams(const std::vector<StreamConfig>& configs, bool exact_match) {
+bool Device::configureStreams(const std::vector<StreamConfig>& configs, bool exact_fps) {
     try {
         std::unordered_map<std::string, std::vector<StreamDefinition>> sensor_streams;
 
         for (const auto& config: configs) {
 
-            auto stream = configureStream(config);
+            auto stream = configureStream(config, exact_fps);
             if (!stream) {
                 error("Failed to configure stream.");
                 return false;
@@ -320,9 +320,12 @@ bool Device::connect() {
     return false;
 }
 
-std::optional<StreamDefinition> Device::configureStream(const StreamConfig& config) {
+std::optional<StreamDefinition> Device::configureStream(const StreamConfig& config, bool exact_fps) {
     info("Configuring stream <{}>: width={} height={} fps={} format={}", toString(config.stream, config.index),
         config.width, config.height, config.fps, rs2_format_to_string(config.format));
+
+    std::optional<StreamDefinition> best_match;
+    int best_fps_offset = 1024;
     auto sensors = device_.query_sensors();
     for(const auto& sensor : sensors) {
         auto profiles = sensor.get_stream_profiles();
@@ -332,7 +335,6 @@ std::optional<StreamDefinition> Device::configureStream(const StreamConfig& conf
                 vp.stream_index() == config.index &&
                 vp.width() == config.width &&
                 vp.height() == config.height &&
-                vp.fps() == config.fps &&
                 vp.format() == config.format)
             {
                 StreamDefinition stream_def;
@@ -340,12 +342,20 @@ std::optional<StreamDefinition> Device::configureStream(const StreamConfig& conf
                 stream_def.index = config.index;
                 stream_def.sensor = sensor;
                 stream_def.profile = vp;
-                return stream_def;
+
+                int fps_offset = std::abs(config.fps - vp.fps());
+                if (fps_offset == 0) {
+                    return stream_def;
+                }
+                else if (!best_match || fps_offset < best_fps_offset) {
+                    best_fps_offset = fps_offset;
+                    best_match = stream_def;
+                }
             }
         }
     }
 
-    return {};
+    return best_match;
 }
 
 void Device::frameCallback(rs2::frame frame) {

@@ -48,11 +48,11 @@ class Device {
      *        effect after it has been closed and reopened.
      *
      * @param[in] config  Stream configurations.
-     * @param[in] exact_match  Require the stream FPS to exactly match the configuration.
+     * @param[in] exact_fps  Require the stream FPS to exactly match the configuration.
      *
      * @returns True if the configurations were valid for this device.
      */
-    bool configureStreams(const std::vector<StreamConfig>& config, bool exact_match=true);
+    bool configureStreams(const std::vector<StreamConfig>& config, bool exact_fps=true);
 
     /**
      * Open the configured device streams for exclusive access.
@@ -137,7 +137,7 @@ class Device {
   private:
     Device(const std::string& serial_no);
     bool connect();
-    std::optional<StreamDefinition> configureStream(const StreamConfig& config);
+    std::optional<StreamDefinition> configureStream(const StreamConfig& config, bool exact_fps=true);
     void frameCallback(rs2::frame frame);
 
     std::string serial_no_;
