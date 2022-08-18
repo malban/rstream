@@ -1,3 +1,34 @@
+/**
+ * Copyright (c) 2022, Hatchbed
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #include <rstream/util.h>
 
 #include <utility>
@@ -28,35 +59,48 @@ spdlog::level::level_enum parseLevel(const std::string& text) {
 }
 
 std::string toString(rs2_stream stream, int index) {
-    if (index == 0) {
-        return rs2_stream_to_string(stream);
+    std::string name = boost::to_lower_copy(std::string(rs2_stream_to_string(stream)));
+    if (stream == RS2_STREAM_INFRARED) {
+        name = "infra";
     }
 
-    return std::string(rs2_stream_to_string(stream)) + "-" +  std::to_string(index);
+    if (index == 0) {
+        return name;
+    }
+
+    return name + std::to_string(index);
 }
 
-std::optional<std::pair<rs2_stream, int>> parseStreamType(const std::string& text) {
+std::string toString(const StreamIndex& stream) {
+    return toString(stream.stream, stream.index);
+}
+
+std::string toString(rs2_format format) {
+    return rs2_format_to_string(format);
+}
+
+std::optional<StreamIndex> parseStreamType(const std::string& text) {
     auto input = boost::to_lower_copy(text);
     if (input == "color") {
-        return std::make_pair(RS2_STREAM_COLOR, 0);
+        return StreamIndex({RS2_STREAM_COLOR, 0});
     }
     else if (input == "depth") {
-        return std::make_pair(RS2_STREAM_DEPTH, 0);
+        return StreamIndex({RS2_STREAM_DEPTH, 0});
     }
     else if (input == "infra") {
-        return std::make_pair(RS2_STREAM_INFRARED, 0);
+        return StreamIndex({RS2_STREAM_INFRARED, 0});
     }
     else if (input == "infra1") {
-        return std::make_pair(RS2_STREAM_INFRARED, 1);
+        return StreamIndex({RS2_STREAM_INFRARED, 1});
     }
     else if (input == "infra2") {
-        return std::make_pair(RS2_STREAM_INFRARED, 2);
+        return StreamIndex({RS2_STREAM_INFRARED, 2});
     }
     else if (input == "fisheye") {
-        return std::make_pair(RS2_STREAM_FISHEYE, 0);
+        return StreamIndex({RS2_STREAM_FISHEYE, 0});
     }
     else if (input == "confidence") {
-        return std::make_pair(RS2_STREAM_CONFIDENCE, 0);
+        return StreamIndex({RS2_STREAM_CONFIDENCE, 0});
     }
 
     return {};

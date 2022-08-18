@@ -1,8 +1,42 @@
+/**
+ * Copyright (c) 2022, Hatchbed
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #include <rstream/device.h>
+
+#include <chrono>
 
 #include <rstream/util.h>
 #include <spdlog/spdlog.h>
 
+using namespace std::chrono_literals;
 using namespace spdlog;
 
 namespace rstream {
@@ -15,11 +49,24 @@ Device::~Device() {
     close();
 }
 
+void Device::hardwareReset() {
+    close();
+
+    try {
+        std::scoped_lock lock(device_mutex_);
+        device_.hardware_reset();
+    }
+    catch(const std::exception& ex) {
+        error("An exception has been thrown trying reset device <{}>: {}", serial_no_, ex.what());
+    }
+}
+
 std::string Device::getSerialNo() const {
     return serial_no_;
 }
 
 bool Device::configureStreams(const std::vector<StreamConfig>& configs, bool exact_fps) {
+    std::scoped_lock lock(device_mutex_);
     try {
         std::unordered_map<std::string, std::vector<StreamDefinition>> sensor_streams;
 
@@ -50,7 +97,33 @@ bool Device::configureStreams(const std::vector<StreamConfig>& configs, bool exa
     return false;
 }
 
+std::vector<rs2::sensor> Device::getConfiguredSensors() {
+    std::vector<rs2::sensor> sensors;
+    for (auto& sensor: sensor_streams_) {
+        if (sensor.second.empty()) {
+            continue;
+        }
+
+        sensors.push_back(sensor.second.front().sensor);
+    }
+    return sensors;
+}
+
+std::optional<rs2::stream_profile> Device::getProfile(const StreamIndex& stream) {
+    for (const auto& sensor: sensors_) {
+        const auto& profiles = sensor.get_stream_profiles();
+        for (const auto& profile: profiles) {
+            if (profile.stream_type() == stream.stream && profile.stream_index() == stream.index) {
+                return profile;
+            }
+        }
+    }
+
+    return {};
+}
+
 bool Device::open() {
+    std::scoped_lock lock(device_mutex_);
     if (is_open_) {
         return true;
     }
@@ -85,6 +158,7 @@ bool Device::open() {
 }
 
 bool Device::close() {
+    std::scoped_lock lock(device_mutex_);
     if (!is_open_) {
         return true;
     }
@@ -120,6 +194,7 @@ bool Device::close() {
 }
 
 bool Device::start() {
+    std::scoped_lock lock(device_mutex_);
     if (!is_open_) {
         return false;
     }
@@ -154,6 +229,7 @@ bool Device::start() {
 }
 
 bool Device::stop() {
+    std::scoped_lock lock(device_mutex_);
     if (!is_streaming_) {
         return true;
     }
@@ -221,7 +297,7 @@ Frameset::Ptr Device::getFrames(int timeout_ms) {
         frames = frameset_;
     }
     else {
-        warn("Timedout waiting for frame data");
+        warn("Timed out waiting for frame data.  Timeout: {}ms", timeout_ms);
     }
 
     // clear the class level frameset
@@ -254,7 +330,6 @@ Device::Ptr Device::find(const std::string& serial_no) {
 }
 
 bool Device::connect() {
-
     auto devices = context_.query_devices();
 
     debug("Found {} device(s)", devices.size());
@@ -276,6 +351,7 @@ bool Device::connect() {
         if (serial_no_.empty() || serial_no_ == serial_no) {
             device_ = device;
             found = true;
+            serial_no_ = serial_no;
             info("Found matching device: <{}>", serial_no);
             break;
         }
@@ -294,9 +370,9 @@ bool Device::connect() {
             info("Physical port: {}", physical_port_);
             info("Product id: {}", product_id_);
 
-            auto sensors = device_.query_sensors();
-            info("Found {} sensor modules", sensors.size());
-            for(const auto& sensor : sensors) {
+            sensors_ = device_.query_sensors();
+            info("Found {} sensor modules", sensors_.size());
+            for(const auto& sensor : sensors_) {
                 auto sensor_name = sensor.get_info(RS2_CAMERA_INFO_NAME);
                 auto profiles = sensor.get_stream_profiles();
                 info("  <{}> with {} profiles", sensor_name, profiles.size());
@@ -310,7 +386,7 @@ bool Device::connect() {
             return true;
         }
         catch(const std::exception& ex) {
-            error("An exception has been thrown trying to access device <{}>: ", serial_no_, ex.what());
+            error("An exception has been thrown trying to access device <{}>: {}", serial_no_, ex.what());
         }
         catch(...) {
             error("Unknown exception has occured trying to access device <{}>!", serial_no_);
@@ -321,7 +397,7 @@ bool Device::connect() {
 }
 
 std::optional<StreamDefinition> Device::configureStream(const StreamConfig& config, bool exact_fps) {
-    info("Configuring stream <{}>: width={} height={} fps={} format={}", toString(config.stream, config.index),
+    info("Configuring stream <{}>: width={} height={} fps={} format={}", toString(config.stream),
         config.width, config.height, config.fps, rs2_format_to_string(config.format));
 
     std::optional<StreamDefinition> best_match;
@@ -331,15 +407,14 @@ std::optional<StreamDefinition> Device::configureStream(const StreamConfig& conf
         auto profiles = sensor.get_stream_profiles();
         for (const auto& profile : profiles) {
             auto vp = profile.as<rs2::video_stream_profile>();
-            if (vp.stream_type() == config.stream &&
-                vp.stream_index() == config.index &&
+            if (vp.stream_type() == config.stream.stream &&
+                vp.stream_index() == config.stream.index &&
                 vp.width() == config.width &&
                 vp.height() == config.height &&
                 vp.format() == config.format)
             {
                 StreamDefinition stream_def;
                 stream_def.stream = config.stream;
-                stream_def.index = config.index;
                 stream_def.sensor = sensor;
                 stream_def.profile = vp;
 
@@ -359,7 +434,7 @@ std::optional<StreamDefinition> Device::configureStream(const StreamConfig& conf
 }
 
 void Device::frameCallback(rs2::frame frame) {
-    std::scoped_lock lock(frameset_mutex_);
+    std::scoped_lock frame_lock(frameset_mutex_);
 
     if (!frameset_) {
         frameset_ = std::make_shared<Frameset>();

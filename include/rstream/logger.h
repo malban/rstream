@@ -31,70 +31,7 @@
 
 #pragma once
 
-#include <optional>
-#include <string>
-
-#include <librealsense2/rs.hpp>
-#include <rstream/common.h>
+#define FMT_USE_STRING_VIEW
+#include <spdlog/sinks/base_sink.h>
 #include <spdlog/spdlog.h>
-
-
-namespace rstream {
-
-/**
- * Parse log level from string.
- *
- * @param[in] text  Log level string.
- *
- * @returns The log level if the string is valid, spdlog::level::off otherwise.
- */
-spdlog::level::level_enum parseLevel(const std::string& text);
-
-/**
- * Parse stream type and index from string.
- *
- * @param[in] text  Stream type string.
- *
- * @returns The stream, index pair if valid, empty otherwise.
- */
-std::optional<StreamIndex>  parseStreamType(const std::string& text);
-
-/**
- * Parse stream format from string.
- *
- * @param[in] text  Stream format string.
- *
- * @returns The stream format if valid, empty otherwise.
- */
-std::optional<rs2_format> parseStreamFormat(const std::string& text);
-
-/**
- * Stringify the provided stream, index pair.
- *
- * @param[in] stream  Steam type.
- * @param[in] index   Stream index.
- *
- * @returns A string label of the stream, index pair.
- */
-std::string toString(rs2_stream stream, int index);
-
-/**
- * Stringify the provided stream, index pair.
- *
- * @param[in] stream  Steam type.
- *
- * @returns A string label of the stream, index pair.
- */
-std::string toString(const StreamIndex& stream);
-
-
-/**
- * Stringify the provided stream format.
- *
- * @param[in] format  Steam format.
- *
- * @returns A string label of the stream format.
- */
-std::string toString(rs2_format format);
-
-}  // namespace rstream
+#include <spdlog/fmt/fmt.h>

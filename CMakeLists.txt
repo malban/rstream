@@ -19,7 +19,8 @@ include_directories(
     ${cli11_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
     ${realsense2_INCLUDE_DIR}
-    ${spdlog_INCLUDE_DIRS})
+    ${spdlog_INCLUDE_DIRS}
+)
 
 add_library(${PROJECT_NAME} SHARED
     src/convert.cpp
@@ -30,10 +31,12 @@ target_link_libraries(${PROJECT_NAME}
     ${OpenCV_LIBRARIES}
     ${realsense2_LIBRARY})
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
+add_dependencies(${PROJECT_NAME} spdlog)
 
 add_executable(rstream_cli src/bin/rstream_cli.cpp)
 target_link_libraries(rstream_cli ${PROJECT_NAME} Threads::Threads)
 set_property(TARGET rstream_cli PROPERTY CXX_STANDARD 17)
+add_dependencies(rstream_cli cli11)
 
 install(
     TARGETS ${PROJECT_NAME} rstream_cli
@@ -45,5 +48,6 @@ install(DIRECTORY include/ DESTINATION include)
 install(FILES package.xml DESTINATION share/${PROJECT_NAME})
 
 # pkg-config
+set(PKG_CONFIG_C_FLAGS "-I${OpenCV_INCLUDE_DIRS} -I${realsense2_INCLUDE_DIR}")
 configure_file(pkg_config/${PROJECT_NAME}.pc.in ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc @ONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc DESTINATION lib/pkgconfig)

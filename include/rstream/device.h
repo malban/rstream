@@ -1,3 +1,34 @@
+/**
+ * Copyright (c) 2022, Hatchbed
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #pragma once
 
 #include <condition_variable>
@@ -16,28 +47,14 @@
 
 namespace rstream {
 
-struct StreamConfig {
-    rs2_stream stream;
-    int index = 0;
-    int width;
-    int height;
-    int fps;
-    rs2_format format;
-};
-
-struct StreamDefinition {
-    rs2_stream stream;
-    int index;
-    rs2::sensor sensor;
-    rs2::video_stream_profile profile;
-};
-
 class Device {
   public:
     using Ptr = std::shared_ptr<Device>;
     using FrameCallback = std::function<void(Frameset::Ptr)>;
 
     ~Device();
+
+    void hardwareReset();
 
     std::string getSerialNo() const;
 
@@ -53,6 +70,22 @@ class Device {
      * @returns True if the configurations were valid for this device.
      */
     bool configureStreams(const std::vector<StreamConfig>& config, bool exact_fps=true);
+
+    /**
+     * Gets the set of sensor modules associated with the configured streams.
+     *
+     * @returns The sensor modules associated with the configured streams.
+     */
+    std::vector<rs2::sensor> getConfiguredSensors();
+
+    /**
+     * Gets a stream profile for a given stream.
+     *
+     * @param[in] stream  The stream index.
+     *
+     * @returns The corresponding stream profile if it exists, empty otherwise.
+     */
+    std::optional<rs2::stream_profile> getProfile(const StreamIndex& stream);
 
     /**
      * Open the configured device streams for exclusive access.
@@ -149,6 +182,7 @@ class Device {
     std::string physical_port_;
     std::string product_id_;
 
+    std::mutex device_mutex_;
     std::mutex frameset_mutex_;
     std::condition_variable frameset_condition_;
     bool waiting_for_frames_ = false;
@@ -157,6 +191,7 @@ class Device {
     bool is_open_ = false;
     bool is_streaming_ = false;
     std::unordered_map<std::string, std::vector<StreamDefinition>> sensor_streams_;
+    std::vector<rs2::sensor> sensors_;
     size_t stream_num_ = 0;
     FrameCallback frame_callback_;
 };
