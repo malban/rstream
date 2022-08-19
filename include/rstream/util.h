@@ -36,8 +36,6 @@
 
 #include <librealsense2/rs.hpp>
 #include <rstream/common.h>
-#include <spdlog/spdlog.h>
-
 
 namespace rstream {
 
@@ -48,7 +46,7 @@ namespace rstream {
  *
  * @returns The log level if the string is valid, spdlog::level::off otherwise.
  */
-spdlog::level::level_enum parseLevel(const std::string& text);
+int parseLevel(const std::string& text);
 
 /**
  * Parse stream type and index from string.

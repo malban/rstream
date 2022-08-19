@@ -34,10 +34,11 @@
 #include <utility>
 
 #include <boost/algorithm/string.hpp>
+#include <spdlog/spdlog.h>
 
 namespace rstream {
 
-spdlog::level::level_enum parseLevel(const std::string& text) {
+int parseLevel(const std::string& text) {
   auto input = boost::to_lower_copy(text);
   if (text == "trace") {
     return spdlog::level::trace;

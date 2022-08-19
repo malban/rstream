@@ -31,7 +31,15 @@
 
 #pragma once
 
-#define FMT_USE_STRING_VIEW
-#include <spdlog/sinks/base_sink.h>
-#include <spdlog/spdlog.h>
-#include <spdlog/fmt/fmt.h>
+#include <functional>
+#include <string>
+
+namespace rstream {
+
+enum class LogLevel { Trace, Debug, Info, Warn, Error };
+
+void sinkLogs(std::function<void(LogLevel, const std::string&)> sink);
+void setLogLevel(LogLevel level);
+
+}
+

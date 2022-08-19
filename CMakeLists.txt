@@ -3,7 +3,7 @@ project(rstream VERSION 0.1.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED filesystem)
 find_package(OpenCV REQUIRED core imgcodecs)
 find_package(realsense2 REQUIRED)
 find_package(Threads REQUIRED)
@@ -26,6 +26,7 @@ add_library(${PROJECT_NAME} SHARED
     src/convert.cpp
     src/device.cpp
     src/frameset.cpp
+    src/logger.cpp
     src/util.cpp)
 target_link_libraries(${PROJECT_NAME}
     ${OpenCV_LIBRARIES}
@@ -34,7 +35,7 @@ set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 add_dependencies(${PROJECT_NAME} spdlog)
 
 add_executable(rstream_cli src/bin/rstream_cli.cpp)
-target_link_libraries(rstream_cli ${PROJECT_NAME} Threads::Threads)
+target_link_libraries(rstream_cli ${PROJECT_NAME} ${Boost_LIBRARIES} Threads::Threads)
 set_property(TARGET rstream_cli PROPERTY CXX_STANDARD 17)
 add_dependencies(rstream_cli cli11)
 

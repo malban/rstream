@@ -57,7 +57,7 @@ struct StreamConfig {
 struct StreamDefinition {
     StreamIndex stream;
     rs2::sensor sensor;
-    rs2::video_stream_profile profile;
+    rs2::stream_profile profile;
 };
 
 }  // namespace rstream

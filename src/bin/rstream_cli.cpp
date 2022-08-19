@@ -32,7 +32,6 @@
 #include <chrono>
 #include <csignal>
 #include <cstdio>
-#include <filesystem>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -45,13 +44,14 @@
 #include <termios.h>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
 #include <CLI/CLI.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <rstream/device.h>
 #include <rstream/util.h>
 #include <spdlog/spdlog.h>
 
-namespace fs = std::filesystem;
+namespace fs = boost::filesystem;
 using namespace std::chrono_literals;
 using namespace spdlog;
 
@@ -188,7 +188,7 @@ int main(int argc, char* argv[]) {
         stream_configs.push_back(config);
     }
 
-    set_level(rstream::parseLevel(level));
+    set_level(static_cast<spdlog::level::level_enum>(rstream::parseLevel(level)));
 
     std::vector<rstream::Device::Ptr> devices;
     for (const auto& serial_no: serial_numbers) {
@@ -238,7 +238,7 @@ int main(int argc, char* argv[]) {
                                 std::to_string(num_frames) +  ".png";
                             fs::path filepath = outdir;
                             filepath /= filename;
-                            cv::imwrite(filepath, mat);
+                            cv::imwrite(filepath.string(), mat);
                         }
                     }
                     num_frames++;
@@ -297,7 +297,7 @@ int main(int argc, char* argv[]) {
                                             std::to_string(num_frames) +  ".png";
                                         fs::path filepath = outdir;
                                         filepath /= filename;
-                                        cv::imwrite(filepath, mat);
+                                        cv::imwrite(filepath.string(), mat);
                                     }
                                 }
                             }
