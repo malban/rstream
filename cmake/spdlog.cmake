@@ -1,5 +1,6 @@
 find_package(spdlog)
-if (${spdlog_FOUND})
+
+if (${spdlog_FOUND} AND ${spdlog_VERSION} VERSION_GREATER_EQUAL "1.3.0")
     add_custom_target(spdlog ALL)
 else() 
     include(ExternalProject)
@@ -15,5 +16,5 @@ else()
     ExternalProject_Get_property(spdlog SOURCE_DIR)
 
     set(spdlog_INCLUDE_DIRS ${SOURCE_DIR}/include)
-endif(${spdlog_FOUND})
+endif(${spdlog_FOUND} AND ${spdlog_VERSION} VERSION_GREATER_EQUAL "1.3.0")
 
