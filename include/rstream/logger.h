@@ -34,9 +34,14 @@
 #include <functional>
 #include <string>
 
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+
 namespace rstream {
 
 enum class LogLevel { Trace, Debug, Info, Warn, Error };
+
+static std::shared_ptr<spdlog::logger> _spd = spdlog::stdout_color_mt("console");
 
 void sinkLogs(std::function<void(LogLevel, const std::string&)> sink);
 void setLogLevel(LogLevel level);
