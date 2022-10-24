@@ -4,6 +4,7 @@ project(rstream VERSION 0.1.0)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 find_package(Boost REQUIRED filesystem)
+find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED core imgcodecs)
 find_package(realsense2 REQUIRED)
 find_package(Threads REQUIRED)
@@ -17,6 +18,7 @@ include(${PROJECT_SOURCE_DIR}/cmake/spdlog.cmake)
 include_directories(
     include
     ${cli11_INCLUDE_DIRS}
+    ${EIGEN3_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
     ${realsense2_INCLUDE_DIR}
     ${spdlog_INCLUDE_DIRS}
@@ -29,6 +31,7 @@ add_library(${PROJECT_NAME} SHARED
     src/logger.cpp
     src/util.cpp)
 target_link_libraries(${PROJECT_NAME}
+    ${EIGEN3_LIBRARIES}
     ${OpenCV_LIBRARIES}
     ${realsense2_LIBRARY})
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)

@@ -42,6 +42,7 @@
 #include <utility>
 #include <vector>
 
+#include <Eigen/Geometry>
 #include <librealsense2/rs.hpp>
 #include <rstream/frameset.h>
 
@@ -86,6 +87,34 @@ class Device {
      * @returns The corresponding stream profile if it exists, empty otherwise.
      */
     std::optional<rs2::stream_profile> getProfile(const StreamIndex& stream);
+
+    /**
+     * Gets camera intrinsics of a given stream profile.
+     *
+     * @param[in] profile  The stream profile.
+     *
+     * @returns The camera intrinsics
+     */
+    Intrinsics getIntrinsics(const rs2::stream_profile& profile);
+
+    /**
+     * Gets camera intrinsics of a given stream.
+     *
+     * @param[in] stream  The stream index.
+     *
+     * @returns The camera intrinsics if it exists, empty otherwise.
+     */
+    std::optional<Intrinsics> getIntrinsics(const StreamIndex& stream);
+
+    /**
+     * Gets camera extrinsics between to streams.
+     *
+     * @param[in] parent  The parent stream of the transform.
+     * @param[in] child   The child stream of the transform.
+     *
+     * @returns The extrinsics between the child and parent streams if it exists, empty otherwise.
+     */
+    std::optional<Eigen::Isometry3d> getExtrinsics(const StreamIndex& parent, const StreamIndex& child);
 
     /**
      * Open the configured device streams for exclusive access.

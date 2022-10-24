@@ -60,6 +60,16 @@ struct StreamDefinition {
     rs2::stream_profile profile;
 };
 
+struct Intrinsics {
+    uint32_t width;
+    uint32_t height;
+    std::string distortion_model;
+    std::vector<double> D;
+    std::array<double, 9> K;
+    std::array<double, 9> R;
+    std::array<double, 12> P;
+};
+
 }  // namespace rstream
 
 namespace std

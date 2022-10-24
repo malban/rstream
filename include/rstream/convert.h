@@ -50,5 +50,4 @@ namespace rstream {
  * @returns True if successful, false otherwise.
  */
 bool toMat(const rs2::frame& frame, cv::Mat& mat);
-
 }  // namespace rstream

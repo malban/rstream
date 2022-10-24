@@ -119,7 +119,110 @@ std::optional<rs2::stream_profile> Device::getProfile(const StreamIndex& stream)
         }
     }
 
+    warn("Failed to get profile for stream: {}", toString(stream));
     return {};
+}
+
+Intrinsics Device::getIntrinsics(const rs2::stream_profile& profile) {
+    Intrinsics intrinsics;
+
+    auto vp = profile.as<rs2::video_stream_profile>();
+    auto intr = vp.get_intrinsics();
+
+    intrinsics.width = intr.width;
+    intrinsics.height = intr.height;
+
+    // camera matrix
+    intrinsics.K = {
+        intr.fx, 0      , intr.ppx,
+        0      , intr.fy, intr.ppy,
+        0      , 0      , 1};
+
+    // rotation matrix
+    intrinsics.R = {
+        1, 0, 0,
+        0, 1, 0,
+        0, 0, 1};
+
+    // projection matrix
+    intrinsics.P = {
+        intr.fx, 0      , intr.ppx, 0,
+        0      , intr.fy, intr.ppy, 0,
+        0      , 0      , 1       , 0};
+
+    // Tx, Ty for right camera
+    if (profile.stream_index() == 2)
+    {
+        StreamIndex right_stream({profile.stream_type(), 1});
+        StreamIndex left_stream({profile.stream_type(), 2});
+
+        auto extrinsics = getExtrinsics(right_stream, left_stream);
+        if (extrinsics) {
+            intrinsics.P[3] = -intr.fx * extrinsics->translation().x() + 0.0;
+            intrinsics.P[7] = -intr.fy * extrinsics->translation().y() + 0.0;
+        }
+    }
+
+    // distortion model
+    if (intr.model == RS2_DISTORTION_KANNALA_BRANDT4) {
+        intrinsics.distortion_model = "equidistant";
+        intrinsics.D.resize(4);
+    } else {
+        intrinsics.distortion_model = "plumb_bob";
+        intrinsics.D.resize(5);
+    }
+    for (int i = 0; i < intrinsics.D.size(); i++)
+    {
+        intrinsics.D[i] = intr.coeffs[i];
+    }
+
+    return intrinsics;
+}
+
+std::optional<Intrinsics> Device::getIntrinsics(const StreamIndex& stream) {
+    auto profile = getProfile(stream);
+    if (!profile) {
+        warn("Failed to get instrincs for stream: {}", toString(stream));
+        return {};
+    }
+
+    return getIntrinsics(*profile);
+}
+
+std::optional<Eigen::Isometry3d> Device::getExtrinsics(const StreamIndex& parent, const StreamIndex& child) {
+    auto parent_profile = getProfile(parent);
+    if (!parent_profile) {
+        warn("Failed to get extrinsics for streams: {} -> {}", toString(child), toString(parent));
+        return {};
+    }
+
+    auto child_profile = getProfile(child);
+    if (!child_profile) {
+        warn("Failed to get extrinsics for streams: {} -> {}", toString(child), toString(parent));
+        return {};
+    }
+
+    Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
+    try {
+        auto ex = child_profile->get_extrinsics_to(*parent_profile);
+
+        Eigen::Translation3d translation({ex.translation[0], ex.translation[1], ex.translation[2]});
+        Eigen::Quaternionf rotation(Eigen::Matrix3f(&ex.rotation[0]));
+        transform.rotate(rotation.cast<double>());
+        //transform = translation * rotation.cast<double>();
+    }
+    catch (const std::exception& e) {
+        std::string message = e.what();
+        if (message == "Requested extrinsics are not available!") {
+            warn("Using identity transform for streams: {} -> {}", toString(child), toString(parent));
+        }
+        else {
+            warn("Failed to get extrinsics for streams: {} -> {}", toString(child), toString(parent));
+            return {};
+        }
+    }
+
+    return transform;
 }
 
 bool Device::open() {

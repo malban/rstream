@@ -9,6 +9,7 @@
 
   <buildtool_depend>cmake</buildtool_depend>
 
+  <depend>eigen</depend>
   <depend>libboost-dev</depend>
   <depend>librealsense2</depend>
   <depend>opencv</depend>
